@@ -11,6 +11,12 @@ class BotTests(unittest.TestCase):
         self.assertIsNone(bot.classify('実写映画化決定'))
         self.assertIsNone(bot.classify('アニメ化してほしい作品'))
         self.assertIsNone(bot.classify('アニメ第2期PV公開'))
+    def test_story_dedup(self):
+        a = {'title': '『架空作品』TVアニメ化決定 - サイトA'}
+        b = {'title': '「架空作品」アニメ化発表 - サイトB'}
+        self.assertEqual(bot.story_key(a, 'TVアニメ化'), bot.story_key(b, 'TVアニメ化'))
+        self.assertNotEqual(bot.story_key(a, 'TVアニメ化'), bot.story_key(a, '続編制作'))
+
     def test_url_normalization(self):
         self.assertEqual(bot.canonical('https://example.com/a/?utm_source=x'), 'https://example.com/a')
     def test_first_run_no_posts(self):

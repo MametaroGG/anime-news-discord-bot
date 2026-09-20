@@ -48,11 +48,29 @@ def classify(title):
     return None
 
 
+
+def story_key(entry, category):
+    """Conservative cross-feed dedup: category + explicitly quoted work title.
+
+    Different article wording without a clear quoted title is NOT merged.
+    """
+    title = html.unescape(re.sub(r'<[^>]+>', '', entry['title']))
+    # Google News often appends a publisher after a spaced hyphen.
+    title = re.sub(r'\s+[-－]\s+[^-－]{1,60}$', '', title).strip()
+    match = re.search(r'[『「]([^』」]{2,90})[』」]', title)
+    if not match:
+        return None
+    work = re.sub(r'[\s　・･!！?？:：～〜\-]+', '', match.group(1)).casefold()
+    if len(work) < 2:
+        return None
+    return hashlib.sha256((category + ':' + work).encode('utf-8')).hexdigest()
+
+
 def load_state():
     if not STATE.exists():
-        return {'initialized': False, 'seen': {}}
+        return {'initialized': False, 'seen': {}, 'stories': {}}
     raw = json.loads(STATE.read_text(encoding='utf-8'))
-    return {'initialized': bool(raw.get('initialized')), 'seen': dict(raw.get('seen', {}))}
+    return {'initialized': bool(raw.get('initialized')), 'seen': dict(raw.get('seen', {})), 'stories': dict(raw.get('stories', {}))}
 
 
 def save_state(state):
@@ -154,21 +172,36 @@ def run(dry_run=False, test_post=False):
             continue
         category = classify(entry['title'])
         if category:
+            skey = story_key(entry, category)
+            if skey and skey in state['stories']:
+                state['seen'][key] = now.isoformat()
+                continue
             candidates.append((entry, category, key))
         else:
             state['seen'][key] = now.isoformat()
     candidates.sort(key=lambda row: row[0]['published'])
+    posted_stories = set()
     for entry, category, key in candidates[:10]:
+        skey = story_key(entry, category)
+        if skey and skey in posted_stories:
+            if not dry_run:
+                state['seen'][key] = now.isoformat()
+            continue
         if dry_run:
             print(f'DRY RUN [{category}] {entry["title"]} {entry["url"]}')
         else:
             post(webhook, entry, category)
             state['seen'][key] = now.isoformat()
+            if skey:
+                state['stories'][skey] = now.isoformat()
             save_state(state)  # Save after each successful post.
             print(f'投稿成功 [{category}] {entry["title"]}')
+        if skey:
+            posted_stories.add(skey)
     # Keep recent history for 90 days.
     cutoff = now - timedelta(days=90)
     state['seen'] = {k: v for k, v in state['seen'].items() if datetime.fromisoformat(v) >= cutoff}
+    state['stories'] = {k: v for k, v in state['stories'].items() if datetime.fromisoformat(v) >= cutoff}
     if not dry_run:
         save_state(state)
     print(f'取得 {len(entries)}件 / 投稿候補 {len(candidates)}件 / 今回処理 {min(len(candidates), 10)}件')

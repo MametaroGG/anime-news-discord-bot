@@ -1,3 +1,13 @@
+# v2 情報源拡張について
+
+既存の3本に加えて、コミックナタリー、アニメ！アニメ！、アニメイトタイムズ、MANTANWEB、ORICON NEWS、PR TIMES、集英社、講談社、小学館、KADOKAWA、スクウェア・エニックスを対象にした **Googleニュースのサイト限定RSS検索** を11本追加しました。これらのサイトを直接スクレイピングするものではなく、Googleニュースに反映された記事だけが対象です。掲載・反映には遅延や欠落があります。
+
+同じ作品名が『』または「」で明記され、発表区分が同じ場合、記事URLが違っても重複投稿を抑えます。異なる表記・引用符なし・同名作品などは完全には判定できません。AIや公式確認は行いません。初回の新フィード追加後、6時間以内の記事は投稿対象になり得ます。必要なら先にドライランしてください。
+
+**更新方法**: 既存の `data/seen.json` は絶対に上書きせず、`feeds.json`、`bot.py`、`tests/test_bot.py`、`README.md` をGitHub上で更新してください。`.github/workflows/monitor.yml` と Secrets は変更不要です。
+
+---
+
 # アニメ化速報 Discord Bot（RSS版）
 
 **無料構成：GitHub Actions + RSS + Discord Webhook。Grok / xAI APIは不要です。**
