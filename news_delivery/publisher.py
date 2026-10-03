@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from .discord_media import discord_payload
 from .schema import Invalid, digest, event_keys, iso, timestamp, validate
 from .state import StateError, legacy_match
 from .transport import ConfigurationError
@@ -190,7 +191,8 @@ def publish(events, ledger, legacy, checkpoint, clients, now, dry_run=True, limi
                 summary['expired'] += 1
                 continue
             summary['attempted'] += 1
-            outcome = active_clients[destination].send(event['texts'][destination], now)
+            payload = discord_payload(event) if destination == 'discord' else event['texts'][destination]
+            outcome = active_clients[destination].send(payload, now)
             delivery.update(status=outcome.status, reason=outcome.reason, updated_at=iso(clock()))
             if outcome.remote_id:
                 delivery['remote_id'] = outcome.remote_id

@@ -56,6 +56,32 @@
     "discord": "架空作品のテスト\nhttps://official.example.jp/news/20261003-new/"
   },
   "dedupe_aliases": [],
-  "media": [],
+  "media": [
+    {
+      "source_url": "https://official.example.jp/news/20261003-new/",
+      "official_basis": "要確認：作品公式サイトから素材の公開元・公式投稿者を確認した根拠",
+      "event_evidence": "要確認：この素材が今回の発表に対応する箇所",
+      "kind": "image",
+      "url": "https://official.example.jp/assets/visual.jpg",
+      "embed_permission": {
+        "status": "awaiting_review",
+        "evidence": "要確認：権利者の埋め込み許諾を確認できる公開根拠"
+      }
+    },
+    {
+      "source_url": "https://official.example.jp/news/20261003-new/",
+      "official_basis": "要確認：作品公式サイトから素材の公開元・公式投稿者を確認した根拠",
+      "event_evidence": "要確認：この素材が今回の発表に対応する箇所",
+      "kind": "youtube",
+      "url": "https://www.youtube.com/watch?v=TEST_ONLY01"
+    },
+    {
+      "source_url": "https://official.example.jp/news/20261003-new/",
+      "official_basis": "要確認：作品公式サイトから素材の公開元・公式投稿者を確認した根拠",
+      "event_evidence": "要確認：この素材が今回の発表に対応する箇所",
+      "kind": "x",
+      "url": "https://x.com/OfficialTest/status/1234567890"
+    }
+  ],
   "manual_x_text": "架空作品のテスト\nhttps://official.example.jp/news/20261003-new/"
 }

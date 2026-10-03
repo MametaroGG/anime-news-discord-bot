@@ -84,6 +84,10 @@ class CliWorkflowTests(unittest.TestCase):
         self.assertNotIn('pull_request', workflow)
         self.assertIn("paths: ['queue/events/**']", workflow)
         self.assertNotIn('--test-post', workflow)
+        self.assertIn('--live --mode discord', workflow)
+        self.assertNotIn('secrets.X_', workflow)
+        self.assertNotIn('vars.X_ENABLED', workflow)
+        self.assertNotIn('--live --mode both', workflow)
 
 
 if __name__ == '__main__':

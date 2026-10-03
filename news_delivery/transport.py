@@ -24,6 +24,8 @@ class Outcome:
     reason: str
     remote_id: str | None = None
     next_attempt_at: str | None = None
+    channel_id: str | None = None
+    guild_id: str | None = None
 
 
 def response_json(response):
@@ -69,8 +71,12 @@ def interpret(response, destination, now):
     code = response.status_code
     if code in (200, 201):
         candidate = data.get('data', {}).get('id') if destination == 'x' and isinstance(data.get('data'), dict) else data.get('id') if destination == 'discord' else None
-        if isinstance(candidate, str) and re.fullmatch(r'\d+', candidate):
-            return Outcome('sent', 'confirmed', candidate)
+        if isinstance(candidate, str) and re.fullmatch(r'[0-9]+', candidate):
+            def discord_id(field):
+                value = data.get(field) if destination == 'discord' else None
+                return value if isinstance(value, str) and re.fullmatch(r'[0-9]{1,25}', value) else None
+            return Outcome('sent', 'confirmed', candidate,
+                           channel_id=discord_id('channel_id'), guild_id=discord_id('guild_id'))
         return Outcome('uncertain', 'success_response_without_message_id')
     if code == 429:
         next_time = rate_limit_time(response, data, now)
@@ -122,7 +128,10 @@ class DiscordClient(ApiClient):
             raise ConfigurationError('invalid DISCORD_WEBHOOK_URL; secret value hidden') from None
 
     def send(self, content, now):
-        return self.post(self.url, {'content': content, 'allowed_mentions': {'parse': []}}, 'discord', now)
+        # Only the internal reviewed renderer supplies dictionaries; legacy text remains supported.
+        payload = dict(content) if isinstance(content, dict) else {'content': content}
+        payload['allowed_mentions'] = {'parse': []}
+        return self.post(self.url, payload, 'discord', now)
 
 
 class XClient(ApiClient):

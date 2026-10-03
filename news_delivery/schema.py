@@ -97,7 +97,9 @@ def validate(event, now=None):
     fields(event, {'schema_version', 'event_id', 'work_key', 'work_title',
                   'announcement_key', 'announcement_kinds', 'published_at',
                   'verified_at', 'queued_at', 'sources', 'facts', 'approval',
-                  'destinations', 'texts', 'dedupe_aliases'}, 'event')
+                  'destinations', 'texts', 'dedupe_aliases'} |
+                  ({key for key in ('media', 'manual_x_text') if key in event}
+                   if isinstance(event, dict) else set()), 'event')
     if type(event['schema_version']) is not int or event['schema_version'] != 1:
         raise Invalid('unsupported schema_version')
     for field in ('event_id', 'work_key', 'announcement_key'):
@@ -159,8 +161,15 @@ def validate(event, now=None):
     if not isinstance(destinations, list) or not destinations or any(d not in ('discord', 'x') for d in destinations) or len(destinations) != len(set(destinations)):
         raise Invalid('invalid destinations')
     fields(event['texts'], destinations, 'texts')
-    for destination in destinations:
-        content = text(event['texts'][destination], 'texts.' + destination, 1900 if destination == 'discord' else 1000)
+    posts = list(event['texts'].items())
+    if 'manual_x_text' in event:
+        if destinations != ['discord']:
+            raise Invalid('manual X copy requires Discord-only delivery')
+        posts.append(('manual_x_text', event['manual_x_text']))
+    for destination, value in posts:
+        content = text(value, 'texts.' + destination, 1900 if destination == 'discord' else 1000)
+        if destination == 'manual_x_text' and '`' in content:
+            raise Invalid('manual X copy cannot contain code delimiters')
         # Deliberately conservative: treat every non-URL Unicode scalar as weight 2.
         # This avoids accidentally exceeding X's standard 280 weighted limit.
         urls = re.findall(r'(?i)\b[a-z][a-z0-9+.-]*://[^\s<>]+|\b(?:mailto|javascript|data|file|tel):[^\s<>]+', content)
@@ -168,14 +177,18 @@ def validate(event, now=None):
             raise Invalid('post links must use supplied official primary sources')
         if not any(source['url'] in content for source in sources):
             raise Invalid('post requires an exact official source link')
-        if destination == 'x':
+        if destination in ('x', 'manual_x_text'):
             non_urls = content
             for url in urls:
                 non_urls = non_urls.replace(url, '')
             if len(non_urls) * 2 + len(urls) * 23 > 280:
                 raise Invalid('X post exceeds conservative 280-weight budget')
-            if re.search(r'(?<!\w)@[A-Za-z0-9_]+', non_urls) or '$' in non_urls:
+            if re.search(r'[@＠][A-Za-z0-9_]+', non_urls) or '$' in non_urls:
                 raise Invalid('automatic mentions and cashtags are not supported')
+    from .discord_media import discord_payload, validate_media
+    validate_media(event)
+    if 'discord' in destinations:
+        discord_payload(event)  # Validate final API limits before any ledger reservation.
     return event
 
 

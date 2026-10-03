@@ -70,16 +70,10 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DELIVERY_LIVE_ENABLED: ${{ vars.DELIVERY_LIVE_ENABLED }}
           DELIVERY_BRANCH: ${{ github.event.repository.default_branch }}
-          X_ENABLED: ${{ vars.X_ENABLED }}
-          X_EXPECTED_USER_ID: ${{ vars.X_EXPECTED_USER_ID }}
-          X_API_KEY: ${{ secrets.X_API_KEY }}
-          X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
-          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
-          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
         shell: bash
         run: |
-          mode=discord
-          if [[ "$X_ENABLED" == "true" ]]; then mode=both; fi
-          python bot.py --live --mode "$mode" --limit 10
+          # Initial rollout: Discord only. X text is copied and posted manually.
+          # Future X API operation requires a separately reviewed workflow change.
+          python bot.py --live --mode discord --limit 10
       # No final 'success-only save': every transition is committed BEFORE/AFTER
       # its individual API operation by GitCheckpoint. No secrets in artifacts.
