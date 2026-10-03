@@ -4,13 +4,13 @@
     "discord-format-test-20261003-v1": {
       "attempted_at": "2026-10-03T04:01:43.173451Z",
       "attempts": 1,
-      "channel_id": null,
+      "channel_id": "1551117737563131984",
       "guild_id": null,
-      "message_id": null,
+      "message_id": "1555791943840178259",
       "payload_sha256": "e3fb0728fc9157809e3bb5280a259a441c48eb25bcbf7f0c7ec0e4f689e2fa81",
-      "reason": "reserved_before_post",
-      "status": "pending",
-      "updated_at": "2026-10-03T04:01:43.173451Z"
+      "reason": "confirmed",
+      "status": "sent",
+      "updated_at": "2026-10-03T04:01:44.762363Z"
     }
   }
 }
