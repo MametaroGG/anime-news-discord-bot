@@ -3,14 +3,23 @@ name: Discord one-time format test
 on:
   workflow_dispatch:
     inputs:
+      test_case:
+        description: '送信対象の固定テスト。ケースごとに別の送信承認が必要です'
+        type: choice
+        required: true
+        default: youtube
+        options:
+          - youtube
+          - x_video
       confirmation:
-        description: 'preview_only は投稿しません。send_one_format_test は固定の動作確認を1回だけDiscordへ送信します'
+        description: 'preview_only は投稿しません。送信時はケースに一致する確認値を選びます'
         type: choice
         required: true
         default: preview_only
         options:
           - preview_only
           - send_one_format_test
+          - send_one_x_video_test
 
 permissions:
   contents: read
@@ -27,6 +36,8 @@ jobs:
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      DISCORD_SMOKE_CASE: ${{ inputs.test_case }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -37,7 +48,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
-      - run: python -m news_delivery.smoke --dry-run
+      - run: python -m news_delivery.smoke --dry-run --case "$DISCORD_SMOKE_CASE"
       - run: python bot.py --dry-run --mode discord
       - run: python -m compileall -q news_delivery tests
       - run: git diff --exit-code
@@ -45,12 +56,16 @@ jobs:
   send:
     needs: validate
     if: >-
-      github.event_name == 'workflow_dispatch' && inputs.confirmation == 'send_one_format_test' &&
+      github.event_name == 'workflow_dispatch' &&
+      ((inputs.test_case == 'youtube' && inputs.confirmation == 'send_one_format_test') ||
+       (inputs.test_case == 'x_video' && inputs.confirmation == 'send_one_x_video_test')) &&
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     permissions:
       contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      DISCORD_SMOKE_CASE: ${{ inputs.test_case }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -64,7 +79,7 @@ jobs:
       - name: Revalidate current default branch without secrets
         run: |
           python -m unittest discover -s tests -v
-          python -m news_delivery.smoke --dry-run
+          python -m news_delivery.smoke --dry-run --case "$DISCORD_SMOKE_CASE"
           python bot.py --dry-run --mode discord
           python -m compileall -q news_delivery tests
           git diff --exit-code
@@ -74,6 +89,6 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_SMOKE_CONFIRMATION: ${{ inputs.confirmation }}
           DISCORD_SMOKE_BRANCH: ${{ github.event.repository.default_branch }}
-        run: python -m news_delivery.smoke --send-one
+        run: python -m news_delivery.smoke --send-one --case "$DISCORD_SMOKE_CASE"
       # Independent manual consent; normal news delivery remains disabled.
       # Any pending, uncertain, blocked or 429 result requires inspection, never retry.
