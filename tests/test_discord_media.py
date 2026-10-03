@@ -26,41 +26,46 @@ def media_event():
 
 
 class DiscordMediaTests(unittest.TestCase):
-    def test_legacy_event_retains_exact_payload_and_fingerprint(self):
+    def test_event_without_media_uses_plain_news_without_mutating_fingerprint(self):
         candidate = event()
         before = copy.deepcopy(candidate)
         validate(candidate, NOW)
         self.assertEqual(discord_payload(candidate), {
-            'content': candidate['texts']['discord'], 'allowed_mentions': {'parse': []}})
+            'content': ('テスト用の架空作品 第2期\n\n架空作品のテスト\n\n'
+                        '発表：続編決定 / 新PV\n\n公式初出：2026/10/03 11:30:00 JST\n\n'
+                        '出典 1\n' + candidate['sources'][0]['url']),
+            'allowed_mentions': {'parse': []}})
         self.assertEqual(candidate, before)
         self.assertEqual(digest(candidate), digest(before))
 
-    def test_rich_card_with_official_image_video_links_and_jst(self):
+    def test_plain_news_with_official_image_video_links_and_jst(self):
         candidate = media_event()
         validate(candidate, NOW)
         payload = discord_payload(candidate)
         self.assertEqual(payload['allowed_mentions'], {'parse': []})
-        self.assertEqual(payload['content'], '公式YouTube\nhttps://www.youtube.com/watch?v=TEST_ONLY01\n\n公式X\nhttps://x.com/OfficialTest/status/1234567890')
-        card = payload['embeds'][0]
-        self.assertEqual(card['title'], candidate['work_title'])
-        self.assertEqual(card['description'], '架空作品のテスト')
-        self.assertEqual(card['image'], {'url': candidate['media'][0]['url']})
-        self.assertEqual(card['fields'][0]['value'], '続編決定 / 新PV')
-        self.assertEqual(card['fields'][1]['value'], '2026/10/03 11:30:00 JST')
-        self.assertEqual(card['fields'][2]['value'], candidate['sources'][0]['url'])
-        self.assertNotIn('video', card)
-        self.assertNotIn('type', card)
+        self.assertEqual(payload['content'],
+                         'テスト用の架空作品 第2期\n\n架空作品のテスト\n\n'
+                         '発表：続編決定 / 新PV\n\n公式初出：2026/10/03 11:30:00 JST\n\n'
+                         '公式YouTube\nhttps://www.youtube.com/watch?v=TEST_ONLY01\n\n'
+                         '公式X\nhttps://x.com/OfficialTest/status/1234567890\n\n'
+                         '公式画像\nhttps://official.example.jp/assets/visual.jpg\n\n'
+                         '出典 1\n' + candidate['sources'][0]['url'])
+        self.assertEqual(set(payload), {'content', 'allowed_mentions'})
+        self.assertNotIn('embeds', payload)
         self.assertNotIn('flags', payload)
         self.assertNotIn('username', payload)
         self.assertNotIn('avatar_url', payload)
 
-    def test_empty_media_explicitly_enables_image_free_card(self):
+    def test_empty_media_uses_same_complete_plain_news_as_absent_media(self):
         candidate = event()
+        expected = discord_payload(candidate)
         candidate['media'] = []
         validate(candidate, NOW)
         payload = discord_payload(candidate)
-        self.assertEqual(payload['content'], '')
-        self.assertNotIn('image', payload['embeds'][0])
+        self.assertEqual(payload, expected)
+        self.assertIn(candidate['work_title'], payload['content'])
+        self.assertIn('架空作品のテスト', payload['content'])
+        self.assertNotIn('embeds', payload)
 
     def test_missing_image_permission_does_not_silently_embed(self):
         for permission in ({'status': 'unknown', 'evidence': '公式だから'},
@@ -136,7 +141,7 @@ class DiscordMediaTests(unittest.TestCase):
         self.assertEqual(media_url('https://twitter.com/Official/status/123?s=20', 'x'),
                          'https://x.com/Official/status/123')
 
-    def test_extra_source_cannot_inject_markdown_links_into_card(self):
+    def test_extra_source_cannot_inject_markdown_links_into_plain_news(self):
         for ending in ('>[details](https://unreviewed.example/story)',
                        '[details](https://unreviewed.example/story)', 'bad\x7f'):
             candidate = media_event()
@@ -153,7 +158,7 @@ class DiscordMediaTests(unittest.TestCase):
             with self.subTest(filename=filename), self.assertRaises(Invalid):
                 validate(candidate, NOW)
 
-    def test_same_x_link_not_repeated_in_card_sources(self):
+    def test_same_x_link_not_repeated_in_plain_news_sources(self):
         candidate = media_event()
         source = copy.deepcopy(candidate['sources'][0])
         source['url'] = 'https://twitter.com/OfficialTest/status/1234567890?s=20'
@@ -163,7 +168,7 @@ class DiscordMediaTests(unittest.TestCase):
         self.assertNotIn(source['url'], json.dumps(payload))
         self.assertEqual(json.dumps(payload).count('https://x.com/OfficialTest/status/1234567890'), 1)
 
-    def test_same_youtube_short_link_not_repeated_in_card_sources(self):
+    def test_same_youtube_short_link_not_repeated_in_plain_news_sources(self):
         candidate = media_event()
         source = copy.deepcopy(candidate['sources'][0])
         source['url'] = 'https://youtu.be/TEST_ONLY01?si=tracking'
@@ -213,20 +218,25 @@ class DiscordMediaTests(unittest.TestCase):
                     {'discord': lambda: client}, NOW, dry_run=False)
         self.assertEqual(client.send.call_count, 1)
 
-    def test_rich_limits_checked_before_any_checkpoint_or_client(self):
+    def test_rendered_limits_checked_before_any_checkpoint_or_client(self):
         candidate = media_event()
-        # Legacy allows 200 Unicode characters, but Discord titles allow 256 UTF-16 units.
+        # Valid field lengths can still exceed the full-message UTF-16 budget.
         candidate['work_title'] = '😀' * 129
+        candidate['texts']['discord'] = 'あ' * 1600 + '\n' + candidate['sources'][0]['url']
+        ledger = empty_ledger()
         checkpoint, factory = Mock(), Mock()
-        with self.assertRaises(Invalid):
-            publish([candidate], empty_ledger(), empty_legacy(), checkpoint,
+        with self.assertRaisesRegex(Invalid, 'rendered content exceeds 2000 UTF-16 units'):
+            publish([candidate], ledger, empty_legacy(), checkpoint,
                     {'discord': factory}, NOW, dry_run=False)
         checkpoint.assert_not_called()
         factory.assert_not_called()
+        self.assertEqual(ledger, empty_ledger())
 
-    def test_rich_source_field_limit_and_total_limit(self):
-        for count, path_size in ((1, 1050), (8, 850)):
+    def test_plain_sources_use_total_message_budget_not_embed_field_limit(self):
+        for count, path_size, accepted in ((1, 1050, True), (8, 850, False)):
             candidate = media_event()
+            candidate['destinations'] = ['discord']
+            candidate['texts'].pop('x')
             candidate['sources'] = []
             for i in range(count):
                 source = copy.deepcopy(event()['sources'][0])
@@ -236,11 +246,15 @@ class DiscordMediaTests(unittest.TestCase):
             for fact in candidate['facts']:
                 fact['source_urls'] = [first]
             candidate['texts']['discord'] = 'テスト\n' + first
-            candidate['texts']['x'] = 'テスト\n' + first
             for item in candidate['media']:
                 item['source_url'] = first
-            with self.subTest(count=count), self.assertRaises(Invalid):
-                validate(candidate, NOW)
+            with self.subTest(count=count):
+                if accepted:
+                    validate(candidate, NOW)
+                    self.assertIn('出典 1\n' + first, discord_payload(candidate)['content'])
+                else:
+                    with self.assertRaisesRegex(Invalid, 'rendered content exceeds 2000 UTF-16 units'):
+                        validate(candidate, NOW)
 
     def test_media_cannot_be_added_to_x_only_event(self):
         candidate = media_event()
@@ -273,9 +287,9 @@ class DiscordMediaTests(unittest.TestCase):
         candidate['manual_x_text'] = candidate['texts'].pop('x')
         validate(candidate, NOW)
         payload = discord_payload(candidate)
-        copy_field = payload['embeds'][0]['fields'][-1]
-        self.assertEqual(copy_field['name'], 'X投稿用（手動コピー）')
-        self.assertEqual(copy_field['value'], '```text\n' + candidate['manual_x_text'] + '\n```')
+        self.assertTrue(payload['content'].endswith(
+            'X投稿用（手動コピー）\n```text\n' + candidate['manual_x_text'] + '\n```'))
+        self.assertNotIn('embeds', payload)
         client = Mock()
         client.send.return_value = Outcome('sent', 'confirmed', '123')
         forbidden = Mock(side_effect=AssertionError('no X API or credentials'))
@@ -286,13 +300,16 @@ class DiscordMediaTests(unittest.TestCase):
         forbidden.assert_not_called()
         self.assertEqual(set(ledger['events'][candidate['event_id']]['deliveries']), {'discord'})
 
-    def test_manual_copy_enables_card_without_media_field(self):
+    def test_manual_copy_preserves_plain_news_without_media_field(self):
         candidate = event()
         candidate['destinations'] = ['discord']
         candidate['manual_x_text'] = candidate['texts'].pop('x')
         validate(candidate, NOW)
-        self.assertIn('embeds', discord_payload(candidate))
-        self.assertNotIn('image', discord_payload(candidate)['embeds'][0])
+        payload = discord_payload(candidate)
+        self.assertNotIn('embeds', payload)
+        self.assertIn('出典 1\n' + candidate['sources'][0]['url'], payload['content'])
+        self.assertTrue(payload['content'].endswith(
+            'X投稿用（手動コピー）\n```text\n' + candidate['manual_x_text'] + '\n```'))
 
     def test_manual_x_copy_uses_same_length_sources_and_mention_safety(self):
         for content in ('リンクなし', 'あ' * 140 + '\n' + event()['sources'][0]['url'],
