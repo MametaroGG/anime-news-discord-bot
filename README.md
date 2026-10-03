@@ -1,57 +1,135 @@
-# v2 情報源拡張について
+# アニメ化速報：公式確認済みニュースの配信
 
-既存の3本に加えて、コミックナタリー、アニメ！アニメ！、アニメイトタイムズ、MANTANWEB、ORICON NEWS、PR TIMES、集英社、講談社、小学館、KADOKAWA、スクウェア・エニックスを対象にした **Googleニュースのサイト限定RSS検索** を11本追加しました。これらのサイトを直接スクレイピングするものではなく、Googleニュースに反映された記事だけが対象です。掲載・反映には遅延や欠落があります。
+旧RSS・正規表現方式を廃止し、**外部で公式確認したニュースだけをDiscordとXへ配信する**構成です。既存の `DISCORD_WEBHOOK_URL` はそのまま使います。Webhookの作り直し・変更は不要です。
 
-同じ作品名が『』または「」で明記され、発表区分が同じ場合、記事URLが違っても重複投稿を抑えます。異なる表記・引用符なし・同名作品などは完全には判定できません。AIや公式確認は行いません。初回の新フィード追加後、6時間以内の記事は投稿対象になり得ます。必要なら先にドライランしてください。
+**初期状態は投稿無効・ドライランです。このリポジトリ単体ではニュースを発見・公式確認しません。** 外部のAIアシスタント／編集担当が一次情報を読み、時刻・新規性・対象範囲・重複を確認して、承認済みJSONを投入します。GitHub ActionsにLLMやRSS収集を装うコードはありません。未確認の記事が「approved」と書くだけで事実になるわけではありません。
 
-**更新方法**: 既存の `data/seen.json` は絶対に上書きせず、`feeds.json`、`bot.py`、`tests/test_bot.py`、`README.md` をGitHub上で更新してください。`.github/workflows/monitor.yml` と Secrets は変更不要です。
+## 何を送るか
 
----
+- A：新規アニメ化、続編、アニメ映画の制作決定
+- B：初出のPV・ビジュアル、放送／配信／公開日、追加キャスト、スタッフ、主題歌、制作会社、正式タイトル、延期
+- 除外：グッズ、イベント、再告知、カウントダウン、通常回の予告、原作書籍の発売、噂・希望・未確認情報
+- 同じ発表でPV・ビジュアル・キャストなどが同時解禁された場合は1件にまとめる
+- **公式の最初の公開時刻が、投入時と送信直前の両方で過去1時間以内**であること。JSTを含む明示的なタイムゾーン付き日時を使い、内部比較はUTCで行う
+- ニュースサイトの後追い時刻、検索に出た時刻、記事の更新時刻を初出時刻に置き換えない。日付だけ・公開時刻不明の情報は送らない
+- GitHubの遅延やAPIの制限により1時間を超えたニュースは失効し、後からまとめて送らない
 
-# アニメ化速報 Discord Bot（RSS版）
+## 全体の流れ
 
-**無料構成：GitHub Actions + RSS + Discord Webhook。Grok / xAI APIは不要です。**
+1. 外部のAIアシスタント／編集担当が公式サイト・制作会社・出版社・公式X等の一次情報を確認する
+2. 作品・シーズン固有のキーと発表固有のキーを決め、既存キュー、配信履歴、既存のX／Discord投稿と突き合わせる
+3. 根拠、元の公開日時、確認日時、確認済み事実、**そのまま配信する承認済み本文**をJSONにする
+4. 権限を持つ担当者が `queue/events/<event_id>.json` をレビューし、mainへ追加する
+5. mainのキュー変更pushまたは15分間隔のキュー消化で検証する。公開実行を有効にした場合だけ送信する
+6. 宛先ごとの送信直前・直後にGitへ状態を保存する
 
-## 導入
+GitHubの現在の接続ツールからworkflow_dispatchを呼べない場合でも、承認したキューファイルのpushで起動できます。状態保存に使う `GITHUB_TOKEN` のpushは通常ワークフローを再起動しません。スケジュールは厳密な定刻を保証せず、長期無活動の公開リポジトリでは停止する場合があります。外部の収集担当の定期起動は別途必要です。
 
-1. GitHubでリポジトリを作成し、このフォルダの中身をアップロード（`.github` フォルダも含める）。
-2. Discordで非公開テストチャンネルを作り、「チャンネル設定 → 連携サービス → ウェブフック」でWebhook URLを取得。
-3. GitHubリポジトリの `Settings → Secrets and variables → Actions → New repository secret` で、名前 `DISCORD_WEBHOOK_URL`、値にWebhook URLを登録。**URLはソースコードやチャットに貼らない。**
-4. `Settings → Actions → General → Workflow permissions` で `Read and write permissions` を選択（組織ポリシーで不可の場合は別途状態保存方式が必要）。
-5. `Actions → Anime news RSS monitor → Run workflow` で `test_post=true` を指定し、Discordへのテスト投稿を確認。
-6. `test_post=false` で実行。初回は既存記事を既読登録するだけで、投稿しない。
-7. 以後15分間隔（毎時03/18/33/48分 UTC）でRSSを確認。GitHubの混雑時は遅延・欠落の可能性あり。
+## ローカル確認（外部投稿なし）
 
-## 重要な制限
+Python 3.12 / Linuxを使用します。ファイルロックはLinuxの `fcntl` を使うため、Windows単体ではなくWSLまたはActionsで実行してください。
 
-- デフォルトの `feeds.json` はGoogleニュースのRSS検索を使用します。**出版社の一次ソースRSSではありません**。公式発表の検証は未実装なので、Discord上の投稿は「候補」と明示します。一般公開前に一次ソース照合を追加してください。
-- **X検索・Grok・公式画像の取得や転載は未実装**。画像は権利確認が必要です。
-- 初回は既読登録だけです。新規の投稿だけが通知されます。
-- RSSに公開日時がないもの、6時間より古いものは安全のため投稿しません。
-- 重複防止は正規化した記事URL単位。同一発表が別サイトから出る場合は複数投稿され得ます。
-- GitHub Actionsの `schedule` は厳密な定刻実行ではありません。公開リポジトリは60日活動がないと自動停止する場合があります。
-- `data/seen.json` をGitHub Actionsがcommitして履歴を維持します。GitHubのリポジトリ履歴にニュースURLのハッシュが残ります。
-- 投稿先Webhookの秘密情報はGitHub Secretsに登録。漏れたらDiscordで再発行してください。
-
-## ローカル実行
-
-```powershell
-py -m pip install -r requirements.txt
-$env:DISCORD_WEBHOOK_URL = 'DiscordのWebhook URL'
-py bot.py --test-post
-py bot.py --dry-run
-py bot.py
-py -m unittest discover -s tests -v
+```bash
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+python -m compileall -q bot.py news_delivery tests
+python bot.py --dry-run --mode both
 ```
+
+引数なしもドライランです。ドライランはAPIアクセス・送信・状態保存をせず、XやDiscordの秘密情報を必要としません。`--test-post` は廃止しました。架空ニュースを実チャンネルに投稿する動作確認はありません。テスト内のニュース・資格情報はすべて架空です。
+
+## 初回切り替え手順
+
+この手順は運用者の承認後に行ってください。コードを作っただけでは設定変更も公開送信もされません。
+
+1. 旧版の `data/seen.json` を**最新mainのまま保存**する。新しいブランチの古いコピーで上書きしない
+2. Draft PRのコード・テスト・ワークフロー変更をレビューする。マージすると旧RSS収集は止まり、承認キュー方式へ切り替わる
+3. `DELIVERY_LIVE_ENABLED` は未設定／`false`のままにする。新しい `data/delivery-state.json` は初回だけ空の台帳を採用し、以後リセットしない
+4. キュー投入者とコード変更者を限定する。mainのbranch protection/rulesetでレビューを必須にし、CODEOWNERSを有効にすることを推奨。CODEOWNERSファイルだけでは強制されない。設定変更はこのコードでは実施しない
+5. Actions → Reviewed anime news delivery → Run workflowを `dry_run=true` で実行し、検証成功を確認する
+6. Discordだけで開始する場合は `X_ENABLED` を未設定／`false` にする。既存Secret `DISCORD_WEBHOOK_URL` の名前・値は変更しない。既存Webhookの実際の送信先は運用者が確認する
+7. 承認された運用開始時にActions Repository variable `DELIVERY_LIVE_ENABLED=true` を設定する。この設定後は承認キューのpush・スケジュール実行が実投稿になる。手動実行はさらに `dry_run=false` が必要
+8. Git台帳へのpushが拒否される場合は送信前に止まる。強制pushや台帳初期化で回避しない。保護ルールと書込権限を運用者が確認する
+9. Xを使う場合は次節の設定後、対象アカウントと投稿範囲を確認し、`X_ENABLED=true` を明示的に設定する
+
+公開リポジトリなので、キュー・本文・根拠・状態・照合メモは公開されます。秘密、非公開の下書き、個人情報を入れないでください。WebhookやAPIキーをチャット、コミット、ログ、Issue、PRへ貼らないでください。
+
+## Xの設定（任意、初期無効）
+
+実装は公式X APIのOAuth 1.0a User Contextを使います。App-only Bearer Tokenやブラウザーのログイン状態では代用しません。
+
+- GitHub Secrets：`X_API_KEY`、`X_API_KEY_SECRET`、`X_ACCESS_TOKEN`、`X_ACCESS_TOKEN_SECRET`
+- Repository variables：`X_EXPECTED_USER_ID`（@animeka_fast の確認済み数値ID）、`X_ENABLED=true`
+- 投稿権限を持つ既存のDeveloper App・ユーザーAccess Tokenが必要。Read/Writeが対象で、DM権限は要求しません
+- 送信前に `GET https://api.x.com/2/users/me` を呼び、数値IDとユーザー名 `animeka_fast` が両方一致した場合だけ `POST https://api.x.com/2/tweets` を使います
+- 本実装はトークン発行、OAuth同意、権限拡張、支払い・APIプラン変更を行いません。必要なら所有者が公式Developer Consoleで内容と費用を確認し、許可された安全な入力方法で設定してください
+- APIの利用可否・料金・利用枠はアカウントの契約を確認してください。無料とは保証しません
+- 返信、DM、いいね、フォロー、重複した宣伝投稿、ブラウザー自動操作、画像の取得・転載はありません
+- X本文は承認後に切り詰めません。URLは23、その他は安全側に1文字2として280以内を検証します。英語本文等を本来の制限より早く拒否することがあります
+
+Discordだけで送信した記事をXに後から一括投稿しません。JSONで意図した宛先と各宛先の状態を分け、Xが利用可能になっても公式初出から1時間を超えた分は失効します。X不要の記事は最初から `destinations: ["discord"]` にします。
+
+## 台帳・障害時の動作
+
+`data/delivery-state.json` を全履歴の台帳として保持します。自動削除・90日リセットはありません。
+
+| 状態 | 意味・対応 |
+| --- | --- |
+| ready | まだ送っていない。429で「未送信」が確定した場合も次回時刻付きでここへ戻す |
+| pending | リモートGitへ送信予約を保存済み。POSTの直前から完了保存までの状態 |
+| sent | APIから確認できたメッセージ／ポストIDを保存済み。同じ宛先へ再送しない |
+| uncertain | タイムアウト、5xx、IDのない成功応答、途中終了。投稿済みの可能性があるため自動再送しない |
+| blocked | 認証・権限・入力エラーや最大試行回数。原因を確認する |
+| legacy_hold | 旧履歴に対応する候補があるが、送信済みとは証明できない。手動照合する |
+| expired | 公式初出から1時間超。送らない |
+
+- 同じイベントのDiscord成功・X失敗を分けて管理します。Discordを巻き戻したり再送したりしません
+- 429だけはRetry-After／x-rate-limit-resetを尊重し、最低5分後の次回実行に回します。同一宛先は最大3試行。過去1時間の条件を超えたら失効します
+- HTTPリダイレクトは拒否します。URLやHTTP例外に含まれる秘密情報を出力しません
+- 送信予約の保存／pushが失敗・競合・不明になれば、送信せず終了します。送信後の保存失敗ではリモートに予約が残り、次回 `uncertain` になります
+- GitHub concurrency、ローカルロック、最新リモート照合、通常のfast-forward pushを組み合わせます。force pushや自動rebaseで台帳競合を解消しません
+- Exactly-onceの保証はできません。APIが受付後に切断すると判定できないため、**重複を避ける代わりに保留し、手動確認を求める**設計です
+- 問題のある宛先を再送せず、独立した宛先／イベントは処理できます。live実行は保留・失敗があると失敗ステータスになり、Actionsに残ります。外部の障害通知先を勝手に追加しません
+
+### uncertain / legacy_hold の照合
+
+1. 運用者が該当時間のDiscord履歴またはXプロフィールを読み、同一本文・公式リンクの投稿を確認する。見つからないだけで未送信と断定しない
+2. 最新mainを取得し、同時に配信しない状態でローカル台帳修正を作る（このコマンドは送信・pushしない）
+
+```bash
+python bot.py reconcile EVENT_ID discord sent \
+  --reviewer OPERATOR --evidence '公開してよい確認根拠・メッセージURL等' \
+  --remote-id CONFIRMED_NUMERIC_MESSAGE_ID
+```
+
+明確に未送信と確認した場合だけ `sent` を `not-sent` に変え、`--remote-id` を省きます。確認者と根拠を監査欄に保存します。差分レビュー後に通常の方法で反映してください。これでも初出1時間の制限は延長されません。送信済み台帳や承認JSONを編集して訂正投稿を装うことはできません。訂正は別途レビュー・承認が必要です。
+
+## 旧履歴の扱い
+
+旧 `data/seen.json` は変更せず、そのまま読んで移行時の衝突確認に使います。旧 `seen` は「取得した」だけの記事も含むため、送信済みという証拠にはなりません。旧URLハッシュ／旧制作決定ストーリーキーと一致したものは両宛先を `legacy_hold` にし、Xへ送信済みだったことにはしません。
+
+旧ハッシュから元のURL・全投稿本文・同一発表を復元できません。URLや作品表記の違いは取りこぼし得るので、切り替え時は外部編集担当が既存投稿も読み、キーと重複を照合してください。旧履歴を消せば安全になる、完全移行できた、という扱いはしません。
 
 ## ファイル構成
 
-- `bot.py`：RSS取得、キーワード判定、Discord投稿、既読管理
-- `feeds.json`：監視RSS一覧。必要に応じて追加・変更可能
-- `data/seen.json`：初回既読と投稿済み記事の状態
-- `.github/workflows/monitor.yml`：15分間隔の自動実行
-- `tests/test_bot.py`：簡単なユニットテスト
+- `bot.py`：互換エントリーポイント（デフォルトはドライラン）
+- `news_delivery/schema.py`：厳密な入力・日時・対象区分の検証
+- `news_delivery/publisher.py`：重複グラフ、宛先別配信、時刻制限、照合
+- `news_delivery/state.py`：台帳の検証、原子的保存、リモート事前保存、旧履歴確認
+- `news_delivery/transport.py`：Discord Webhook／公式X API
+- `queue/events/`：承認済みイベントのみ。初期状態は空
+- `docs/event-contract.md`：外部の確認担当が作成する入力仕様
+- `docs/event-template.json`：**送信できない未承認テンプレート**
+- `.github/workflows/ci.yml`：PRで秘密情報を渡さずテスト。pull_request_targetは使わない
+- `.github/workflows/monitor.yml`：default branchの承認キュー配信
 
-## 本番公開に向けて
+## 公式資料（2026-10-03に確認）
 
-出版社・作品の一次ソースを検証する処理、同一作品・同一発表の横断重複排除、画像使用許諾管理、エラー通知を追加してください。
+- [X：投稿API](https://docs.x.com/x-api/posts/manage-tweets/introduction)
+- [X：ログインユーザー確認](https://docs.x.com/x-api/users/get-my-user)
+- [X：OAuth 1.0aのリクエスト認証](https://docs.x.com/fundamentals/authentication/oauth-1-0a/authorizing-a-request)
+- [X：レート制限](https://docs.x.com/x-api/fundamentals/rate-limits)
+- [X：自動化ルール](https://help.x.com/en/rules-and-policies/x-automation)
+- [Discord：Webhook実行、waitと応答](https://docs.discord.com/developers/resources/webhook#execute-webhook)

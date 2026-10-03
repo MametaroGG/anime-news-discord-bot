@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "event_id": "replace-with-reviewed-event-id",
+  "work_key": "replace-work-season-key",
+  "work_title": "要確認：正式作品名",
+  "announcement_key": "replace-announcement-key",
+  "announcement_kinds": [
+    "sequel",
+    "new_pv"
+  ],
+  "published_at": "2026-10-03T11:30:00+09:00",
+  "verified_at": "2026-10-03T11:40:00+09:00",
+  "queued_at": "2026-10-03T11:45:00+09:00",
+  "sources": [
+    {
+      "url": "https://official.example.jp/news/20261003-new/",
+      "title": "第2期制作決定・PV公開",
+      "publisher": "作品公式",
+      "published_at": "2026-10-03T11:30:00+09:00",
+      "timestamp_evidence": "要確認：元の公式発表日時を確認した箇所",
+      "official_basis": "要確認：このソースが作品公式である根拠"
+    }
+  ],
+  "facts": [
+    {
+      "kind": "sequel",
+      "text": "テスト用の事実",
+      "source_urls": [
+        "https://official.example.jp/news/20261003-new/"
+      ]
+    },
+    {
+      "kind": "new_pv",
+      "text": "テスト用の事実",
+      "source_urls": [
+        "https://official.example.jp/news/20261003-new/"
+      ]
+    }
+  ],
+  "approval": {
+    "status": "awaiting_review",
+    "reviewed_by": "要確認：確認担当者",
+    "approved_at": "2026-10-03T11:42:00+09:00",
+    "checks": {
+      "not_duplicate": false,
+      "in_scope": false,
+      "official_primary": false,
+      "new_information": false,
+      "original_timestamp": false
+    }
+  },
+  "destinations": [
+    "discord",
+    "x"
+  ],
+  "texts": {
+    "discord": "架空作品のテスト\nhttps://official.example.jp/news/20261003-new/",
+    "x": "架空作品のテスト\nhttps://official.example.jp/news/20261003-new/"
+  },
+  "dedupe_aliases": []
+}
