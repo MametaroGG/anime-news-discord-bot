@@ -11,6 +11,17 @@
       "reason": "confirmed",
       "status": "sent",
       "updated_at": "2026-10-03T04:01:44.762363Z"
+    },
+    "discord-x-video-test-20261003-v1": {
+      "attempted_at": "2026-10-03T07:21:44.903823Z",
+      "attempts": 1,
+      "channel_id": null,
+      "guild_id": null,
+      "message_id": null,
+      "payload_sha256": "e2c8e8b7960f1dcc0b424592bc8791792861169ec3dce4a27c04b0f415018a62",
+      "reason": "reserved_before_post",
+      "status": "pending",
+      "updated_at": "2026-10-03T07:21:44.903823Z"
     }
   }
 }
