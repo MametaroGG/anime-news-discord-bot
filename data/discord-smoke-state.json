@@ -12,6 +12,17 @@
       "status": "sent",
       "updated_at": "2026-10-03T04:01:44.762363Z"
     },
+    "discord-x-link-only-test-20261003-v1": {
+      "attempted_at": "2026-10-03T08:10:58.334719Z",
+      "attempts": 1,
+      "channel_id": null,
+      "guild_id": null,
+      "message_id": null,
+      "payload_sha256": "133fa51deda2dbe8ab499e67a65e4725874ab626b2de93f8d426f3d7f84ac7c4",
+      "reason": "reserved_before_post",
+      "status": "pending",
+      "updated_at": "2026-10-03T08:10:58.334719Z"
+    },
     "discord-x-video-test-20261003-v1": {
       "attempted_at": "2026-10-03T07:21:44.903823Z",
       "attempts": 1,
