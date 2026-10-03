@@ -1,4 +1,4 @@
-"""One fixed, explicitly manual Discord format check, separate from news delivery.
+"""Fixed, separately approved Discord format checks, separate from news delivery.
 
 The committed ledger is never initialized or reset here. Any reservation, including
 a rate limit or a failed/uncertain result, permanently consumes this smoke ID.
@@ -14,6 +14,7 @@ from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .discord_media import media_url
 from .schema import Invalid, digest, iso, read_json, timestamp
 from .state import GitCheckpoint, StateError, locked
 from .transport import ConfigurationError, DiscordClient
@@ -22,13 +23,48 @@ ROOT = Path(__file__).resolve().parent.parent
 LEDGER_RELATIVE = 'data/discord-smoke-state.json'
 SMOKE_ID = 'discord-format-test-20261003-v1'
 CONFIRMATION = 'send_one_format_test'
+X_VIDEO_SMOKE_ID = 'discord-x-video-test-20261003-v1'
+X_VIDEO_CONFIRMATION = 'send_one_x_video_test'
+X_VIDEO_URL = 'https://x.com/hirayasumi0426/status/2104707978460803552/video/1'
+CASES = {'youtube': (SMOKE_ID, CONFIRMATION), 'x_video': (X_VIDEO_SMOKE_ID, X_VIDEO_CONFIRMATION)}
 SOURCE_URL = 'https://www.aniplex.co.jp/news/detail/?id=70322'
 VIDEO_URL = 'https://www.youtube.com/watch?v=UmVTrrDVYV4'
 TITLE = '『劇場版 魔法少女まどか☆マギカ〈ワルプルギスの廻天〉』予告第3弾'
 
 
-def fixed_payload():
-    """Return a fresh copy of the only payload this command can send."""
+def case_spec(case):
+    if not isinstance(case, str) or case not in CASES:
+        raise ConfigurationError('unknown fixed smoke case')
+    return CASES[case]
+
+
+def fixed_payload(case='youtube'):
+    """Return a fixed allowlisted payload; the original case remains byte-for-byte stable."""
+    case_spec(case)
+    if case == 'x_video':
+        # Exercise the production URL validator, preserving the native /video/1 suffix.
+        video = media_url(X_VIDEO_URL, 'x')
+        return {
+            'content': (
+                '【動作確認】X動画リンクの表示確認\n'
+                '過去の投稿を使った表示テストです。ニュース速報ではありません\n\n'
+                '指定のX動画リンク\n' + video
+            ),
+            'allowed_mentions': {'parse': []},
+            'embeds': [{
+                'title': 'X標準の動画コピーURL・表示テスト',
+                'description': '動画リンクと手動コピー欄の表示確認です。新着ニュースとしての配信ではありません。',
+                'color': 0x5865F2,
+                'fields': [
+                    {'name': '用途', 'value': '動作確認のみ（ニュース速報ではありません）', 'inline': False},
+                    {'name': '表示について', 'value': '動画の展開・再生はDiscord側の対応によります。原典は上のリンクから開けます。', 'inline': False},
+                    {'name': 'X投稿用（手動コピー・テスト例）', 'value': (
+                        '```text\n【表示テスト・過去の投稿】\n'
+                        'X動画リンクの表示確認です。ニュース速報ではありません。\n' + video + '\n```'
+                    ), 'inline': False},
+                ],
+            }],
+        }
     return {
         'content': (
             '【動作確認】Discord投稿フォーマット\n'
@@ -81,12 +117,14 @@ def _numeric_id(value):
 def validate_ledger(ledger):
     if (not isinstance(ledger, dict) or set(ledger) != {'schema_version', 'tests'} or
             type(ledger['schema_version']) is not int or ledger['schema_version'] != 1 or
-            not isinstance(ledger['tests'], dict) or set(ledger['tests']) - {SMOKE_ID}):
+            not isinstance(ledger['tests'], dict) or
+            set(ledger['tests']) - {spec[0] for spec in CASES.values()}):
         raise StateError('invalid smoke ledger structure; never reset the ledger')
-    for row in ledger['tests'].values():
+    for smoke_id, row in ledger['tests'].items():
         if not isinstance(row, dict) or set(row) != ROW_FIELDS:
             raise StateError('invalid smoke attempt structure')
-        if row['payload_sha256'] != digest(fixed_payload()):
+        case = next(case for case, spec in CASES.items() if spec[0] == smoke_id)
+        if row['payload_sha256'] != digest(fixed_payload(case)):
             raise StateError('smoke payload differs from the reserved payload; do not resend')
         if (not isinstance(row['status'], str) or row['status'] not in REASONS or
                 not isinstance(row['reason'], str) or row['reason'] not in REASONS[row['status']]):
@@ -111,11 +149,12 @@ def load_ledger(path):
     return validate_ledger(read_json(path, 16 * 1024))
 
 
-def require_manual_send(env):
+def require_manual_send(env, case='youtube'):
+    _, confirmation = case_spec(case)
     if env.get('GITHUB_ACTIONS') != 'true' or env.get('GITHUB_EVENT_NAME') != 'workflow_dispatch':
         raise ConfigurationError('smoke send requires a manual GitHub Actions dispatch')
-    if env.get('DISCORD_SMOKE_CONFIRMATION') != CONFIRMATION:
-        raise ConfigurationError('smoke send requires the exact send_one_format_test confirmation')
+    if env.get('DISCORD_SMOKE_CONFIRMATION') != confirmation:
+        raise ConfigurationError('smoke send requires the exact confirmation for the selected fixed case')
     branch = env.get('DISCORD_SMOKE_BRANCH', '')
     if (not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_./-]*', branch) or '..' in branch or branch.endswith('/') or
             env.get('GITHUB_REF') != 'refs/heads/' + branch):
@@ -123,12 +162,13 @@ def require_manual_send(env):
     return branch
 
 
-def summary(ledger, *, dry_run, existing):
+def summary(ledger, *, dry_run, existing, case='youtube'):
     """Only fixed labels and verified numeric receipts, never message bodies."""
     validate_ledger(ledger)
-    row = ledger['tests'].get(SMOKE_ID)
+    smoke_id, _ = case_spec(case)
+    row = ledger['tests'].get(smoke_id)
     result = {
-        'smoke_id': SMOKE_ID, 'dry_run': dry_run, 'existing_attempt': existing,
+        'smoke_id': smoke_id, 'dry_run': dry_run, 'existing_attempt': existing,
         'status': row['status'] if row else 'preview',
         'reason': row['reason'] if row else 'no_attempt',
         'attempts': row['attempts'] if row else 0,
@@ -174,31 +214,32 @@ def _record_outcome(row, outcome):
         row.update(status='uncertain', reason='unexpected_send_failure')
 
 
-def send_once(ledger, checkpoint, client_factory, now, env, clock=None):
+def send_once(ledger, checkpoint, client_factory, now, env, clock=None, case='youtube'):
     """Reserve remotely, POST once, persist the result; no retries in any state."""
     validate_ledger(ledger)
-    require_manual_send(env)
-    if SMOKE_ID in ledger['tests']:
-        return summary(ledger, dry_run=False, existing=True)
+    smoke_id, _ = case_spec(case)
+    require_manual_send(env, case)
+    if smoke_id in ledger['tests']:
+        return summary(ledger, dry_run=False, existing=True, case=case)
     if checkpoint is None:
         raise StateError('smoke send requires a durable remote checkpoint')
     client = client_factory()  # Validate the existing webhook before reserving.
     row = {
-        'payload_sha256': digest(fixed_payload()), 'status': 'pending',
+        'payload_sha256': digest(fixed_payload(case)), 'status': 'pending',
         'reason': 'reserved_before_post', 'attempts': 1,
         'attempted_at': iso(now), 'updated_at': iso(now),
         'message_id': None, 'channel_id': None, 'guild_id': None,
     }
-    ledger['tests'][SMOKE_ID] = row
+    ledger['tests'][smoke_id] = row
     checkpoint(ledger)  # Stop before POST if push or the following remote check fails.
     try:
-        _record_outcome(row, client.send(fixed_payload(), now))
+        _record_outcome(row, client.send(fixed_payload(case), now))
     except Exception:
         row.update(status='uncertain', reason='unexpected_send_failure',
                    message_id=None, channel_id=None, guild_id=None)
     row['updated_at'] = iso(clock() if clock else now)
     validate_ledger(ledger)
-    observed = summary(ledger, dry_run=False, existing=False)
+    observed = summary(ledger, dry_run=False, existing=False, case=case)
     try:
         checkpoint(ledger)
     except Exception:
@@ -208,24 +249,27 @@ def send_once(ledger, checkpoint, client_factory, now, env, clock=None):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='Preview or explicitly send one fixed Discord format check')
+    parser = argparse.ArgumentParser(description='Preview or explicitly send a selected fixed Discord format check')
+    parser.add_argument('--case', choices=tuple(CASES), default='youtube', help='fixed separately approved test case')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--dry-run', action='store_true', help='default; no secrets, API calls or state writes')
-    mode.add_argument('--send-one', action='store_true', help='requires manual Actions send_one_format_test confirmation')
+    mode.add_argument('--send-one', action='store_true', help='requires the selected case-specific manual Actions confirmation')
     args = parser.parse_args(argv)
     try:
         with locked(ROOT / '.delivery.lock') if args.send_one else nullcontext():
             ledger = load_ledger(ROOT / LEDGER_RELATIVE)
+            smoke_id, _ = case_spec(args.case)
             if not args.send_one:
-                result = summary(ledger, dry_run=True, existing=bool(ledger['tests']))
+                result = summary(ledger, dry_run=True, existing=smoke_id in ledger['tests'], case=args.case)
             else:
-                branch = require_manual_send(os.environ)
-                checkpoint = None if ledger['tests'] else GitCheckpoint(ROOT, branch, LEDGER_RELATIVE)
+                branch = require_manual_send(os.environ, args.case)
+                checkpoint = None if smoke_id in ledger['tests'] else GitCheckpoint(ROOT, branch, LEDGER_RELATIVE)
                 result = send_once(
                     ledger, checkpoint,
                     lambda: DiscordClient(os.environ.get('DISCORD_WEBHOOK_URL', '')),
                     datetime.now(timezone.utc), os.environ,
                     clock=lambda: datetime.now(timezone.utc),
+                    case=args.case,
                 )
             print(json.dumps(result, sort_keys=True))
             return 0 if not args.send_one or result['status'] == 'sent' else 1
