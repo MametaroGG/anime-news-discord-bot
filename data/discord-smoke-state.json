@@ -15,13 +15,13 @@
     "discord-x-link-only-test-20261003-v1": {
       "attempted_at": "2026-10-03T08:10:58.334719Z",
       "attempts": 1,
-      "channel_id": null,
+      "channel_id": "1551117737563131984",
       "guild_id": null,
-      "message_id": null,
+      "message_id": "1555854672210956400",
       "payload_sha256": "133fa51deda2dbe8ab499e67a65e4725874ab626b2de93f8d426f3d7f84ac7c4",
-      "reason": "reserved_before_post",
-      "status": "pending",
-      "updated_at": "2026-10-03T08:10:58.334719Z"
+      "reason": "confirmed",
+      "status": "sent",
+      "updated_at": "2026-10-03T08:11:00.373153Z"
     },
     "discord-x-video-test-20261003-v1": {
       "attempted_at": "2026-10-03T07:21:44.903823Z",
