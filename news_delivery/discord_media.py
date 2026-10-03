@@ -1,4 +1,4 @@
-"""Reviewed source links and rich Discord cards; no media fetching or rehosting."""
+"""Reviewed plain-text Discord news with native links; no media fetching or rehosting."""
 from __future__ import annotations
 
 import re
@@ -98,14 +98,14 @@ def validate_media(event):
             if permission['status'] != 'granted':
                 raise Invalid('image embedding requires confirmed permission')
             text(permission['evidence'], 'media.embed_permission.evidence', 1000)
-    if rich:
+    if 'discord' in event['destinations']:
         for source in event['sources']:
             if re.search(r'[<>`\[\]{}()"\x7f]', source['url']):
-                raise Invalid('unsafe rich Discord source URL syntax')
-        # Rich mode relocates standalone links; prose is never silently rewritten.
+                raise Invalid('unsafe Discord source URL syntax')
+        # News formatting relocates standalone links; links may not hide inside prose.
         for line in event['texts']['discord'].splitlines():
             if '://' in line and (line.strip() != line or canonical(line) not in sources):
-                raise Invalid('rich Discord source URLs must occupy separate lines')
+                raise Invalid('Discord source URLs must occupy separate lines')
 
 
 def _link_identity(url):
@@ -121,68 +121,50 @@ def _link_identity(url):
 
 
 def _literal(value):
-    return re.sub(r'([\\`*_{}\[\]()<>|~])', r'\\\1', value)
+    return re.sub(r'([\\`*_{}\[\]()<>|~#+.\-])', r'\\\1', value)
 
 
 def discord_payload(event):
-    """Pure, deterministic formatting of already validated editorial content."""
-    content = event['texts']['discord']
-    payload = {'content': content, 'allowed_mentions': {'parse': []}}
-    if 'media' not in event and 'manual_x_text' not in event:
-        return payload  # Existing admitted events keep their exact old payload.
-    media = event.get('media', [])
-    links = []
+    """One plain-text news message; native URLs can preview without custom embeds."""
+    if '://' in event['work_title'] or re.search(
+            r'(?i)(?<![A-Za-z0-9+.-])(?:mailto|javascript|data|file|tel):', event['work_title']):
+        raise Invalid('Discord work title cannot contain links; use official source lines')
+    summary = '\n'.join(line for line in event['texts']['discord'].splitlines()
+                        if '://' not in line).strip()
+    if not summary:
+        raise Invalid('Discord post requires a reviewed summary')
+    sections = [
+        _literal(event['work_title']),
+        _literal(summary),
+        '発表：' + ' / '.join(LABELS[kind] for kind in event['announcement_kinds']),
+        '公式初出：' + timestamp(event['published_at']).astimezone(
+            timezone(timedelta(hours=9))).strftime('%Y/%m/%d %H:%M:%S JST'),
+    ]
     linked = set()
-    for item in media:
-        if item['kind'] in ('youtube', 'x'):
-            url = media_url(item['url'], item['kind'])
+    labels = {'youtube': '公式YouTube', 'x': '公式X', 'image': '公式画像'}
+    # Prefer the reviewed media URL (including /video/N) over its source alias.
+    for kind in ('youtube', 'x', 'image'):
+        for item in event.get('media', []):
+            if item['kind'] != kind:
+                continue
+            url = media_url(item['url'], kind)
             identity = _link_identity(url)
             if identity not in linked:
-                links.append(('公式YouTube' if item['kind'] == 'youtube' else '公式X') + '\n' + url)
+                sections.append(labels[kind] + '\n' + url)
                 linked.add(identity)
-    # All primary sources remain accessible even if an image hotlink is blocked.
-    # Avoid repeating a native-preview URL inside the rich card.
-    sources = []
+    source_count = 0
     for source in event['sources']:
         identity = _link_identity(source['url'])
-        if identity in linked:
-            continue
-        sources.append({'name': '出典 ' + str(len(sources) + 1),
-                        'value': source['url'], 'inline': False})
-        linked.add(identity)
-    summary = '\n'.join(line for line in content.splitlines() if '://' not in line).strip()
-    if not summary:
-        raise Invalid('rich Discord post requires a reviewed summary')
-    embed = {
-        'title': _literal(event['work_title']),
-        'description': summary,
-        'color': 0x5865F2,
-        'fields': [
-            {'name': '発表', 'value': ' / '.join(LABELS[kind] for kind in event['announcement_kinds']), 'inline': False},
-            {'name': '公式初出（JST）', 'value': timestamp(event['published_at']).astimezone(
-                timezone(timedelta(hours=9))).strftime('%Y/%m/%d %H:%M:%S JST'), 'inline': False},
-            *sources,
-        ],
-    }
+        if identity not in linked:
+            source_count += 1
+            sections.append('出典 ' + str(source_count) + '\n' + source['url'])
+            linked.add(identity)
     if 'manual_x_text' in event:
-        embed['fields'].append({'name': 'X投稿用（手動コピー）',
-                                'value': '```text\n' + event['manual_x_text'] + '\n```',
-                                'inline': False})
-    for item in media:
-        if item['kind'] == 'image':
-            embed['image'] = {'url': media_url(item['url'], 'image')}
-    payload['content'] = '\n\n'.join(links)
-    payload['embeds'] = [embed]
-    # Discord's string limits are measured conservatively in UTF-16 code units.
-    def size(value):
-        return len(value.encode('utf-16-le')) // 2
-    if size(payload['content']) > 2000 or size(embed['title']) > 256 or size(summary) > 4096:
-        raise Invalid('Discord rendered text exceeds field limit')
-    total = size(embed['title']) + size(summary)
-    for field in embed['fields']:
-        if size(field['name']) > 256 or size(field['value']) > 1024:
-            raise Invalid('Discord rendered source or field exceeds limit')
-        total += size(field['name']) + size(field['value'])
-    if total > 6000:
-        raise Invalid('Discord rendered embed exceeds total text limit')
-    return payload
+        # Keep the approved copy text verbatim. URLs inside a code block do not
+        # create another native preview; the original is accessible above.
+        sections.append('X投稿用（手動コピー）\n```text\n' + event['manual_x_text'] + '\n```')
+    content = '\n\n'.join(sections)
+    # Count the entire rendered message, including labels, URLs and copy block.
+    if len(content.encode('utf-16-le')) // 2 > 2000:
+        raise Invalid('Discord rendered content exceeds 2000 UTF-16 units')
+    return {'content': content, 'allowed_mentions': {'parse': []}}

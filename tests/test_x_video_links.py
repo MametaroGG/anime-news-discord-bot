@@ -86,30 +86,57 @@ class XVideoLinkTests(unittest.TestCase):
         self.assertEqual(canonical('https://x.com/a-longer-general-source/status/123'),
                          'https://x.com/i/status/123')
 
-    def test_video_link_outside_embed_and_manual_copy_are_preserved(self):
+    def test_video_link_outside_copy_block_and_manual_copy_are_preserved(self):
         candidate = video_event()
         before = copy.deepcopy(candidate)
         validate(candidate, NOW)
         payload = discord_payload(candidate)
         self.assertEqual(candidate, before)
-        self.assertEqual(payload['content'], '公式X\n' + VIDEO)
-        card = payload['embeds'][0]
-        self.assertFalse(any(field['name'].startswith('出典 ') for field in card['fields']))
-        manual = next(field for field in card['fields'] if field['name'] == 'X投稿用（手動コピー）')
-        self.assertEqual(manual['value'], '```text\n' + candidate['manual_x_text'] + '\n```')
-        self.assertNotIn('video', card)
+        expected = ('テスト用の架空作品 第2期\n\n架空作品のテスト\n\n'
+                    '発表：続編決定 / 新PV\n\n公式初出：2026/10/03 11:30:00 JST\n\n'
+                    '公式X\n' + VIDEO + '\n\nX投稿用（手動コピー）\n```text\n'
+                    + candidate['manual_x_text'] + '\n```')
+        self.assertEqual(payload['content'], expected)
+        active, manual = payload['content'].split('```text\n')
+        self.assertEqual([line for line in active.splitlines() if line.startswith('https://')],
+                         [VIDEO])
+        self.assertNotIn('出典 ', active)
+        self.assertEqual(manual, candidate['manual_x_text'] + '\n```')
+        self.assertEqual(set(payload), {'content', 'allowed_mentions'})
+        self.assertEqual(payload['allowed_mentions'], {'parse': []})
+        self.assertNotIn('embeds', payload)
         self.assertNotIn('flags', payload)
 
-    def test_video_source_and_base_media_are_not_repeated_in_card(self):
+    def test_video_source_and_base_media_are_not_repeated_in_active_urls(self):
         candidate = video_event()
         candidate['sources'][0]['url'] = VIDEO
         candidate['texts']['discord'] = '架空作品のテスト\n' + VIDEO
         candidate['media'][0]['url'] = POST
         validate(candidate, NOW)
         payload = discord_payload(candidate)
-        self.assertEqual(payload['content'], '公式X\n' + POST)
-        self.assertFalse(any(field['name'].startswith('出典 ')
-                             for field in payload['embeds'][0]['fields']))
+        active, manual = payload['content'].split('```text\n')
+        self.assertEqual([line for line in active.splitlines() if line.startswith('https://')],
+                         [POST])
+        self.assertNotIn('出典 ', active)
+        self.assertEqual(manual, candidate['manual_x_text'] + '\n```')
+
+    def test_video_media_dedupes_tracked_host_and_username_source_aliases(self):
+        for source_url in (POST, VIDEO, POST + '/video/2',
+                           VIDEO.replace('x.com', 'www.twitter.com') + '?s=20&t=share',
+                           POST.replace('hirayasumi0426', 'ChangedName')):
+            candidate = video_event()
+            candidate['sources'][0]['url'] = source_url
+            candidate['texts']['discord'] = '架空作品のテスト\n' + source_url
+            candidate['manual_x_text'] = '架空作品のテスト\n' + source_url
+            with self.subTest(source_url=source_url):
+                validate(candidate, NOW)
+                content = discord_payload(candidate)['content']
+                active, manual = content.split('```text\n')
+                self.assertEqual([line for line in active.splitlines() if line.startswith('https://')],
+                                 [VIDEO])
+                self.assertEqual(active.count(VIDEO), 1)
+                self.assertNotIn('出典 ', active)
+                self.assertEqual(manual, candidate['manual_x_text'] + '\n```')
 
     def test_video_and_post_cannot_count_as_distinct_primary_sources(self):
         candidate = video_event()
