@@ -84,6 +84,7 @@ https://official.example.jp/news/20261003-new/
 - default branchと `test_case` を選び、`confirmation=preview_only`（初期値）で秘密情報・通信・投稿・状態保存なしの検証を実行できる
 - `test_case=youtube`（初期値）の送信確認は `confirmation=send_one_format_test`。従来の固定ID `discord-format-test-20261003-v1`、本文、送信履歴は保持する。本文は「動作確認・ニュース速報ではありません」で、2026-04-30の[アニプレックス公式記事](https://www.aniplex.co.jp/news/detail/?id=70322)と[公式YouTube PV](https://www.youtube.com/watch?v=UmVTrrDVYV4)を過去の表示例として使う
 - `test_case=x_video` の送信確認は `confirmation=send_one_x_video_test`。別の固定ID `discord-x-video-test-20261003-v1` で[指定のX動画コピーURL](https://x.com/hirayasumi0426/status/2104707978460803552/video/1)を1回だけ送る。「動作確認・過去の投稿・ニュース速報ではありません」と明示し、カード外リンクと手動コピー欄の `/video/1` を保持する。作品名、公開日時、公式性は新たに推定しない
+- `test_case=x_link_only` の送信確認は `confirmation=send_one_x_link_only_test`。固定ID `discord-x-link-only-test-20261003-v1` で、同じ指定X動画URLだけを1回送る比較テスト。本文はURLと完全一致し、説明文、独自カード、別リンク、プレビュー抑制フラグは付けない。前2ケースの履歴は保持し、この比較投稿にも別途承認が必要
 - ケースと確認値が一致し、テスト・ドライランが成功した場合だけ送信する。任意のURL、本文、IDを入力する機能はない。画像・動画の取得や添付、Xへの投稿は行わない
 - `data/discord-smoke-state.json` に選択ケースの送信予約をリモート保存してからPOSTし、結果も保存する。他ケースの履歴は変更しない。送信済み・送信待ち・結果不明・拒否・429のどの状態でも同じ固定IDを再送しない。再度実行しても選択ケースの既存結果を報告するだけ
 - 欠落・破損した台帳は初期化せず停止する。台帳削除、IDの付け替え、強制pushで再試行しない。送信後の保存失敗も、確認できた応答IDを報告して再送せず保留する

@@ -25,8 +25,14 @@ SMOKE_ID = 'discord-format-test-20261003-v1'
 CONFIRMATION = 'send_one_format_test'
 X_VIDEO_SMOKE_ID = 'discord-x-video-test-20261003-v1'
 X_VIDEO_CONFIRMATION = 'send_one_x_video_test'
+X_LINK_ONLY_SMOKE_ID = 'discord-x-link-only-test-20261003-v1'
+X_LINK_ONLY_CONFIRMATION = 'send_one_x_link_only_test'
 X_VIDEO_URL = 'https://x.com/hirayasumi0426/status/2104707978460803552/video/1'
-CASES = {'youtube': (SMOKE_ID, CONFIRMATION), 'x_video': (X_VIDEO_SMOKE_ID, X_VIDEO_CONFIRMATION)}
+CASES = {
+    'youtube': (SMOKE_ID, CONFIRMATION),
+    'x_video': (X_VIDEO_SMOKE_ID, X_VIDEO_CONFIRMATION),
+    'x_link_only': (X_LINK_ONLY_SMOKE_ID, X_LINK_ONLY_CONFIRMATION),
+}
 SOURCE_URL = 'https://www.aniplex.co.jp/news/detail/?id=70322'
 VIDEO_URL = 'https://www.youtube.com/watch?v=UmVTrrDVYV4'
 TITLE = '『劇場版 魔法少女まどか☆マギカ〈ワルプルギスの廻天〉』予告第3弾'
@@ -41,6 +47,9 @@ def case_spec(case):
 def fixed_payload(case='youtube'):
     """Return a fixed allowlisted payload; the original case remains byte-for-byte stable."""
     case_spec(case)
+    if case == 'x_link_only':
+        # Exact approved comparison: no card, label, other link or suppress-embed flag.
+        return {'content': media_url(X_VIDEO_URL, 'x'), 'allowed_mentions': {'parse': []}}
     if case == 'x_video':
         # Exercise the production URL validator, preserving the native /video/1 suffix.
         video = media_url(X_VIDEO_URL, 'x')

@@ -11,6 +11,7 @@ on:
         options:
           - youtube
           - x_video
+          - x_link_only
       confirmation:
         description: 'preview_only は投稿しません。送信時はケースに一致する確認値を選びます'
         type: choice
@@ -20,6 +21,7 @@ on:
           - preview_only
           - send_one_format_test
           - send_one_x_video_test
+          - send_one_x_link_only_test
 
 permissions:
   contents: read
@@ -58,7 +60,8 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' &&
       ((inputs.test_case == 'youtube' && inputs.confirmation == 'send_one_format_test') ||
-       (inputs.test_case == 'x_video' && inputs.confirmation == 'send_one_x_video_test')) &&
+       (inputs.test_case == 'x_video' && inputs.confirmation == 'send_one_x_video_test') ||
+       (inputs.test_case == 'x_link_only' && inputs.confirmation == 'send_one_x_link_only_test')) &&
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     permissions:
       contents: write
