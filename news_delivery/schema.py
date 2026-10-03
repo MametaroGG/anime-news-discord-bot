@@ -16,6 +16,8 @@ KINDS = frozenset({
 CHECKS = frozenset({'official_primary', 'original_timestamp', 'new_information',
                     'in_scope', 'not_duplicate'})
 ID = re.compile(r'^[a-z0-9][a-z0-9._-]{2,119}$')
+X_POST_PATH = re.compile(
+    r'/[A-Za-z0-9_]{1,15}/status/(?P<post_id>[0-9]{1,25})(?:/video/[1-9][0-9]*)?')
 MAX_FILE_BYTES = 64 * 1024
 
 
@@ -71,7 +73,12 @@ def canonical(url):
     if host in {'www.twitter.com', 'twitter.com', 'www.x.com'}:
         host = 'x.com'
     path = p.path.rstrip('/') or '/'
-    if host == 'x.com' and re.fullmatch(r'/[^/]+/status/\d+', path):
+    x_post = X_POST_PATH.fullmatch(path) if host == 'x.com' else None
+    if x_post:
+        # Video selections share the original post's identity, not its display URL.
+        path = '/i/status/' + x_post.group('post_id')
+    elif host == 'x.com' and re.fullmatch(r'/[^/]+/status/\d+', path):
+        # Preserve the existing identity of broader, non-media source URLs.
         path = '/i/status/' + path.rsplit('/', 1)[1]
     # X tracking (?s=20, ?t=...) does not change the identity of a post.
     query = [] if host == 'x.com' and re.fullmatch(r'/[^/]+/status/\d+', path) else [

@@ -5,7 +5,7 @@ import re
 from datetime import timedelta, timezone
 from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
-from .schema import Invalid, canonical, fields, text, timestamp
+from .schema import Invalid, X_POST_PATH, canonical, fields, text, timestamp
 
 LABELS = {
     'new_adaptation': 'アニメ化決定', 'sequel': '続編決定',
@@ -51,10 +51,11 @@ def media_url(url, kind):
             raise Invalid('YouTube URL must identify one video')
         return 'https://www.youtube.com/watch?v=' + video_id
     if kind == 'x':
-        if host not in X_HOSTS or not re.fullmatch(r'/[A-Za-z0-9_]{1,15}/status/[0-9]{1,25}', p.path):
+        if host not in X_HOSTS or not X_POST_PATH.fullmatch(p.path):
             raise Invalid('X URL must identify one original post')
         if any(key not in {'s', 't'} for key, _ in parse_qsl(p.query, keep_blank_values=True)):
             raise Invalid('unsupported X URL parameters')
+        # Keep /video/N for X's native copied-video link. Only identity drops it.
         return 'https://x.com' + p.path
     if kind == 'image':
         if host in PLATFORM_HOSTS or p.query or not re.fullmatch(r'/[^?#]+\.(?:png|jpe?g|webp|gif)', p.path, re.I):

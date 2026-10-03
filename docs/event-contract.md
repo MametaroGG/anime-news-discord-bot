@@ -65,7 +65,7 @@ approvalには `status: "approved"`、`reviewed_by`、`approved_at`、`checks` �
 - `event_evidence`: その素材が今回の新情報に対応することを一次ソースで確認した箇所・根拠（1000文字以内）。本文やソースの公開時刻・承認と一緒にレビューします
 - `image`: 対応する `source_url` とホスト完全一致、拡張子png/jpg/jpeg/webp/gifの元URLだけ。クエリ付き／別ホストのCDN／SNSの生画像・動画URLは受け付けません。`embed_permission: {"status": "granted", "evidence": "権利者の埋め込み許諾と確認できる公開根拠"}` が必要で、evidenceは1000文字以内。公式公開だけでは権利許諾になりません。許可が不明ならimageを外して出典だけにします
 - `youtube`: youtube.com / www.youtube.com / m.youtube.com の `/watch?v=動画ID`、`/shorts/動画ID`、`/live/動画ID`、または youtu.be/動画ID。11文字の単一動画IDのみ。v/t/si/feature以外のクエリ、playlist、redirect、embed URLは受け付けません。表示時は追跡・開始秒等を除いた通常のwatch URLへ揃えます
-- `x`: x.com / www.x.com / twitter.com / www.twitter.com の `/投稿者/status/数値ID`。s/t以外のクエリ、プロフィールだけのURL、video.twimg.com、fx/vx等は不可。表示時はx.comの元投稿URLへ揃えます
+- `x`: x.com / www.x.com / twitter.com / www.twitter.com の `/投稿者/status/数値ID`、または末尾に `/video/正の整数` が付くX標準の動画コピーURL。動画番号は1以上の半角数字で先頭ゼロなし。s/t以外のクエリ、プロフィールだけのURL、video.twimg.com、fx/vx等は不可。表示時はx.comへ揃え、動画コピーURLの `/video/番号` は保持します。重複判定では投稿URLと同じ投稿IDとして扱い、手動コピー本文は書き換えません
 
 本文 `texts.discord` は、要約文と公式出典URLを**別々の行**に置きます。URLを文章やMarkdownリンクに混ぜると拒否します。各原典リンクは出典欄または動画リンクに一度だけ表示し（独立した手動コピー欄を除く）、すべての公式sourcesに導線を残します。要約がない入力は拒否します。カードは作品名・確認済み本文・発表区分・公式初出日時（JST）を表示します。画像が読めない場合も出典が残ります。
 
