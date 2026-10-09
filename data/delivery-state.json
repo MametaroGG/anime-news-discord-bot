@@ -4,10 +4,10 @@
     "pokemon-wonder-voyage-pv-20261009-n6vzjxunaww": {
       "deliveries": {
         "discord": {
-          "attempts": 0,
-          "reason": "ready",
-          "status": "ready",
-          "updated_at": "2026-10-09T11:17:00.289980Z"
+          "attempts": 1,
+          "reason": "durable_pre_send_reservation",
+          "status": "pending",
+          "updated_at": "2026-10-09T11:17:02.289487Z"
         }
       },
       "fingerprint": "c79f6b6b689ea719585dd0dc662986648a907ad537f26ef5999c9d9376637ede",
