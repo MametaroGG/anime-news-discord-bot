@@ -1,6 +1,27 @@
 {
   "audit": [],
-  "events": {},
-  "keys": {},
+  "events": {
+    "pokemon-wonder-voyage-pv-20261009-n6vzjxunaww": {
+      "deliveries": {
+        "discord": {
+          "attempts": 0,
+          "reason": "ready",
+          "status": "ready",
+          "updated_at": "2026-10-09T11:17:00.289980Z"
+        }
+      },
+      "fingerprint": "c79f6b6b689ea719585dd0dc662986648a907ad537f26ef5999c9d9376637ede",
+      "keys": [
+        "announcement:pokemon-2023-wonder-voyage:pv-20261009-n6vzjxunaww",
+        "source:https://www.youtube.com/watch?v=n6VZjxUNAww"
+      ],
+      "published_at": "2026-10-09T10:25:19Z",
+      "queued_at": "2026-10-09T20:15:45+09:00"
+    }
+  },
+  "keys": {
+    "announcement:pokemon-2023-wonder-voyage:pv-20261009-n6vzjxunaww": "pokemon-wonder-voyage-pv-20261009-n6vzjxunaww",
+    "source:https://www.youtube.com/watch?v=n6VZjxUNAww": "pokemon-wonder-voyage-pv-20261009-n6vzjxunaww"
+  },
   "schema_version": 1
 }
