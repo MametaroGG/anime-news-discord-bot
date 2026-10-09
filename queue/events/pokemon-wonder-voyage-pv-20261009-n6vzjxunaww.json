@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "event_id": "pokemon-wonder-voyage-pv-20261009-n6vzjxunaww",
+  "work_key": "pokemon-2023-wonder-voyage",
+  "work_title": "ポケットモンスター ワンダーボヤージュ",
+  "announcement_key": "pv-20261009-n6vzjxunaww",
+  "announcement_kinds": [
+    "new_pv"
+  ],
+  "published_at": "2026-10-09T19:25:19+09:00",
+  "verified_at": "2026-10-09T20:15:45+09:00",
+  "queued_at": "2026-10-09T20:15:45+09:00",
+  "sources": [
+    {
+      "url": "https://www.youtube.com/watch?v=n6VZjxUNAww",
+      "title": "【公式】アニメ「ポケットモンスター」｜ワンダーボヤージュ　最新PV",
+      "publisher": "ポケモン公式YouTubeチャンネル",
+      "published_at": "2026-10-09T19:25:19+09:00",
+      "timestamp_evidence": "YouTube watchページのplayerMicroformatRenderer.publishDateとuploadDateが2026-10-09T03:25:19-07:00。公式チャンネルAtom feedの当該videoIdのpublishedも2026-10-09T10:25:19+00:00で一致。playabilityStatus=OK、isLiveContent=false。",
+      "official_basis": "ポケモン公式サイト https://www.pokemon.co.jp/ のYouTubeリンク https://www.youtube.com/user/PokemonCoJp が示すチャンネルID UC_SI1j1d8vJo_rYMV5o_dRg と本動画のchannelIdが一致。"
+    }
+  ],
+  "facts": [
+    {
+      "kind": "new_pv",
+      "text": "「ワンダーボヤージュ」の最新PVが公式YouTubeで公開された。",
+      "source_urls": [
+        "https://www.youtube.com/watch?v=n6VZjxUNAww"
+      ]
+    }
+  ],
+  "approval": {
+    "status": "approved",
+    "reviewed_by": "official-news-review",
+    "approved_at": "2026-10-09T20:15:45+09:00",
+    "checks": {
+      "official_primary": true,
+      "original_timestamp": true,
+      "new_information": true,
+      "in_scope": true,
+      "not_duplicate": true
+    }
+  },
+  "destinations": [
+    "discord"
+  ],
+  "texts": {
+    "discord": "「ワンダーボヤージュ」の最新PVを公開。\nhttps://www.youtube.com/watch?v=n6VZjxUNAww"
+  },
+  "dedupe_aliases": [],
+  "media": [
+    {
+      "kind": "youtube",
+      "url": "https://www.youtube.com/watch?v=n6VZjxUNAww",
+      "source_url": "https://www.youtube.com/watch?v=n6VZjxUNAww",
+      "official_basis": "ポケモン公式サイト https://www.pokemon.co.jp/ のYouTubeリンク https://www.youtube.com/user/PokemonCoJp が示すチャンネルID UC_SI1j1d8vJo_rYMV5o_dRg と本動画のchannelIdが一致。",
+      "event_evidence": "公式動画タイトルが「ワンダーボヤージュ 最新PV」。2026-10-09公開の約55秒動画。9月18日の旧PV（_JI8OvRA3Mk、40秒）とは別動画。公式feedで同日第153話予告（P6bQK9NblTk）とは別に掲載され、未公開プレミアではない。"
+    }
+  ],
+  "manual_x_text": "アニメ『ポケットモンスター』「ワンダーボヤージュ」の最新PVが公開！\nhttps://www.youtube.com/watch?v=n6VZjxUNAww"
+}
